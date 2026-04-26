@@ -12,9 +12,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN apt-get update && apt-get install -y --no-install-recommends \
     fuse \
     && export GCSFUSE_REPO="gcsfuse-$(. /etc/os-release && echo ${VERSION_CODENAME})" \
-    && echo "deb https://packages.cloud.google.com/apt ${GCSFUSE_REPO} main" \
+    && echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt ${GCSFUSE_REPO} main" \
        > /etc/apt/sources.list.d/gcsfuse.list \
-    && curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add - \
+    && curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
+       -o /usr/share/keyrings/cloud.google.gpg \
     && apt-get update && apt-get install -y gcsfuse \
     && rm -rf /var/lib/apt/lists/*
 

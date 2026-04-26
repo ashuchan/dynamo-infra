@@ -10,7 +10,7 @@
 #   CANVAS_DB_RESYNC      — "true" or "false"
 #   CANVAS_OUTPUT_BUCKET  — GCS bucket name (no gs:// prefix)
 
-set -e
+set -eu
 
 echo "[migrate] Starting canvas-migrate job"
 echo "[migrate] CANVAS_DB_RESYNC=${CANVAS_DB_RESYNC}"
