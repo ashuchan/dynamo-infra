@@ -1,26 +1,24 @@
+# ── builder ───────────────────────────────────────────────────────────────────
+FROM python:3.11-slim AS builder
+
+WORKDIR /build
+
+# gcc + libpq-dev cover any packages that lack pre-built wheels for the target arch
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+
+# ── runtime ───────────────────────────────────────────────────────────────────
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# System dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
-
-# gcsfuse — needed for local development outside Cloud Run
-# (Cloud Run handles the GCS volume mount natively; gcsfuse is a fallback)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    fuse \
-    && export GCSFUSE_REPO="gcsfuse-$(. /etc/os-release && echo ${VERSION_CODENAME})" \
-    && echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt ${GCSFUSE_REPO} main" \
-       > /etc/apt/sources.list.d/gcsfuse.list \
-    && curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg \
-       -o /usr/share/keyrings/cloud.google.gpg \
-    && apt-get update && apt-get install -y gcsfuse \
-    && rm -rf /var/lib/apt/lists/*
-
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy installed packages from builder — no build tools in the final image
+COPY --from=builder /install /usr/local
 
 COPY . .
 
