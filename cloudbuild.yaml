@@ -1,0 +1,93 @@
+substitutions:
+  _REGION: asia-south1
+  _CANVAS_DB_RESYNC: "false"
+  _FRONTEND_IMAGE_TAG: latest
+
+steps:
+  - id: build-backend
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - gcr.io/$PROJECT_ID/dynamoui-backend:$COMMIT_SHA
+      - -t
+      - gcr.io/$PROJECT_ID/dynamoui-backend:latest
+      - --cache-from
+      - gcr.io/$PROJECT_ID/dynamoui-backend:latest
+      - .
+
+  - id: push-backend
+    name: gcr.io/cloud-builders/docker
+    args: [push, --all-tags, gcr.io/$PROJECT_ID/dynamoui-backend]
+    waitFor: [build-backend]
+
+  - id: update-migrate-job
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - jobs
+      - update
+      - dynamoui-canvas-migrate
+      - --image=gcr.io/$PROJECT_ID/dynamoui-backend:$COMMIT_SHA
+      - --region=$_REGION
+    waitFor: [push-backend]
+
+  - id: canvas-migrate
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - jobs
+      - execute
+      - dynamoui-canvas-migrate
+      - --region=$_REGION
+      - --wait
+      - --update-env-vars=CANVAS_DB_RESYNC=$_CANVAS_DB_RESYNC
+    waitFor: [update-migrate-job]
+
+  - id: deploy-backend
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - dynamoui-backend
+      - --image=gcr.io/$PROJECT_ID/dynamoui-backend:$COMMIT_SHA
+      - --region=$_REGION
+      - --no-traffic
+    waitFor: [canvas-migrate]
+
+  - id: route-backend-traffic
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - services
+      - update-traffic
+      - dynamoui-backend
+      - --to-latest
+      - --region=$_REGION
+    waitFor: [deploy-backend]
+
+  - id: deploy-frontend
+    name: gcr.io/google.com/cloudsdktool/cloud-sdk:slim
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - dynamoui-frontend
+      - --image=gcr.io/$PROJECT_ID/dynamoui-frontend:$_FRONTEND_IMAGE_TAG
+      - --region=$_REGION
+      - --to-latest
+    waitFor: [route-backend-traffic]
+
+images:
+  - gcr.io/$PROJECT_ID/dynamoui-backend:$COMMIT_SHA
+  - gcr.io/$PROJECT_ID/dynamoui-backend:latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8
+
+timeout: 1200s
